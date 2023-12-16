@@ -4,9 +4,12 @@
 #include "mbed.h"
 
 // variable declarations
+//*************Data Storage*****************
+
+//todo: arrays to store 20 seconds of x y z data
 
 //example 2 from recitation 5: 
-//spi intialization
+//*************SPI intialization*****************
 SPI spi(PF_9, PF_8, PF_7,PC_1,use_gpio_ssel); // mosi, miso, sclk, cs
 
 //address of first register with gyro data
@@ -36,6 +39,7 @@ void spi_cb(int event){
   flags.set(SPI_FLAG);
 }
 
+//*************LCD screen intialization*****************
 // LCD initialization
 #include "drivers/LCD_DISCO_F429ZI.h"
 LCD_DISCO_F429ZI lcd;
@@ -52,6 +56,7 @@ Timer t;
 volatile uint32_t elapsed_time;
 
 
+//*************main*****************
 int main(){
 
     //spi intialization for gyroscope
@@ -68,17 +73,20 @@ int main(){
     spi.transfer(write_buf,2,read_buf,2,spi_cb,SPI_EVENT_COMPLETE );
     flags.wait_all(SPI_FLAG); 
 
-    //LCD
+    //LCD initialization
     lcd.Clear(LCD_COLOR_LIGHTBLUE);
     lcd.SetTextColor(LCD_COLOR_BLACK);
-    lcd.DisplayStringAtLine(0, (uint8_t *)"Hello World!");
+    lcd.DisplayStringAtLine(0, (uint8_t *)"Step Counter 3000❕");
 
-
+    //intialize timer to track when 20s have passed
     t.start();
 
+    //*************main loop*****************
     while (1){
-    int16_t raw_gx,raw_gy,raw_gz;
-    float gx, gy, gz;
+
+      //*************gyroscope readings*****************
+      int16_t raw_gx,raw_gy,raw_gz;
+      float gx, gy, gz;
       //prepare the write buffer to trigger a sequential read
       write_buf[0]=OUT_X_L|0x80|0x40;
       //start sequential sample reading
@@ -91,13 +99,12 @@ int main(){
       raw_gz=( ( (uint16_t)read_buf[6] ) <<8 ) | ( (uint16_t)read_buf[5] );
 
       //printf("RAW|\tgx: %d \t gy: %d \t gz: %d\t",raw_gx,raw_gy,raw_gz);
-
+      //unit conversion to radians per second
       gx=((float)raw_gx)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
       gy=((float)raw_gy)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
       gz=((float)raw_gz)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
-      
 
-      //prep test for LCD
+      //prep text for LCD
       snprintf(bufx, 60, "gx: %4.5f",gx);
       snprintf(bufy, 60, "gy: %4.5f",gy);
       snprintf(bufz, 60, "gz: %4.5f",gz);
@@ -106,13 +113,27 @@ int main(){
       lcd.DisplayStringAtLine(3, (uint8_t *)bufy);
       lcd.DisplayStringAtLine(4, (uint8_t *)bufz);
 
+      //*************math for distance*****************
+      //multiply each reading of z by the amount of time between each reading
+      //store results in another array to calculate the area under the curve (integration)
+
       //checking if twenty seconds have passed
       elapsed_time=t.read_ms();
       if (elapsed_time >= 20000){
+
+        //sum area under the curve array
+
+        //text on LCD
         snprintf(buft, 60, "twenty seconds: %d", result);
         lcd.DisplayStringAtLine(6, (uint8_t *)buft);
+
+        //reset timer
         t.reset();
+        
+        //reset 
         result = result + 1;
+
+
       }
 
         thread_sleep_for(100);
