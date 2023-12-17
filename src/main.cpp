@@ -43,6 +43,7 @@ void spi_cb(int event){
 // LCD initialization
 #include "drivers/LCD_DISCO_F429ZI.h"
 LCD_DISCO_F429ZI lcd;
+TS_DISCO_F429ZI ts;
 
 //LCD display buffers
 char bufx[60];
@@ -78,11 +79,25 @@ int main(){
     lcd.SetTextColor(LCD_COLOR_BLACK);
     lcd.DisplayStringAtLine(0, (uint8_t *)"Step Counter 3000❕");
 
+    TS_StateTypeDef TS_State;
+    uint8_t status;
+    status = ts.Init(lcd.GetXSize(), lcd.GetYSize());
+
     //intialize timer to track when 20s have passed
     t.start();
 
     //*************main loop*****************
     while (1){
+
+      //**************detect touch****************
+      ts.GetState(&TS_State);      
+      if (TS_State.TouchDetected)
+      {
+        x = TS_State.X;
+        y = TS_State.Y;
+        sprintf((char*)text, "x=%d y=%d    ", x, y);
+        lcd.DisplayStringAt(0, LINE(0), (uint8_t *)&text, LEFT_MODE);
+      }
 
       //*************gyroscope readings*****************
       int16_t raw_gx,raw_gy,raw_gz;
