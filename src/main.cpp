@@ -7,6 +7,7 @@
 //*************Data Storage*****************
 
 //todo: arrays to store 20 seconds of x y z data
+uint16_t userheight = 30; //in inches
 
 //example 2 from recitation 5: 
 //*************SPI intialization*****************
@@ -42,6 +43,7 @@ void spi_cb(int event){
 //*************LCD screen intialization*****************
 // LCD initialization
 #include "drivers/LCD_DISCO_F429ZI.h"
+#include "drivers/TS_DISCO_F429ZI.h"
 LCD_DISCO_F429ZI lcd;
 TS_DISCO_F429ZI ts;
 
@@ -51,6 +53,8 @@ char bufy[60];
 char bufz[60];
 char buft[60];
 uint16_t result = 0;
+
+bool start_flag = false;
 
 //timer
 Timer t;
@@ -77,81 +81,120 @@ int main(){
     //LCD initialization
     lcd.Clear(LCD_COLOR_LIGHTBLUE);
     lcd.SetTextColor(LCD_COLOR_BLACK);
-    lcd.DisplayStringAtLine(0, (uint8_t *)"Step Counter 3000❕");
+    lcd.DisplayStringAtLine(0, (uint8_t *)"Step Counter 3000");
+
 
     TS_StateTypeDef TS_State;
     uint8_t status;
     status = ts.Init(lcd.GetXSize(), lcd.GetYSize());
+    char x;
+    char y;
+    char text[60];
+    char userheighttext[60];
 
-    //intialize timer to track when 20s have passed
-    t.start();
+
+    //**************start screen****************
+    //we could also change this to just height and divide in half roughly
+    lcd.DisplayStringAtLine(1, (uint8_t *)"Enter height of hips");
+    lcd.DisplayStringAtLine(4, (uint8_t *)"  /\\  ");
+    lcd.DisplayStringAtLine(5, (uint8_t *)" /  \\ ");
+    lcd.DisplayStringAtLine(6, (uint8_t *)"  ||  ");
+    sprintf((char*)userheighttext, "%d inches", userheight);
+    lcd.DisplayStringAt(1, LINE(8), (uint8_t *)&userheighttext, CENTER_MODE);
+    lcd.DisplayStringAtLine(10, (uint8_t *)"  ||  ");
+    lcd.DisplayStringAtLine(11, (uint8_t *)" \\  / ");
+    lcd.DisplayStringAtLine(12, (uint8_t *)"  \\/  ");
+    lcd.DisplayStringAtLine(16, (uint8_t *)"[ C O N F I R M ]");
 
     //*************main loop*****************
     while (1){
 
       //**************detect touch****************
       ts.GetState(&TS_State);      
-      if (TS_State.TouchDetected)
+      
+      //**************detect start button****************
+      if (TS_State.TouchDetected && start_flag == false)
       {
         x = TS_State.X;
         y = TS_State.Y;
         sprintf((char*)text, "x=%d y=%d    ", x, y);
-        lcd.DisplayStringAt(0, LINE(0), (uint8_t *)&text, LEFT_MODE);
+        lcd.DisplayStringAt(1, LINE(18), (uint8_t *)&text, LEFT_MODE);
+        //up button is pressed
+        if ( (y<250 && y>200) && (x<50) ){
+          userheight = userheight + 6;
+          sprintf((char*)userheighttext, "%d inches", userheight);
+          lcd.DisplayStringAt(1, LINE(8), (uint8_t *)&userheighttext, CENTER_MODE);
+        }
+        //down button is pressed
+        if ( (y<135 && y>95) && (x<50) ){
+          userheight = userheight - 6;
+          sprintf((char*)userheighttext, "%d inches", userheight);
+          lcd.DisplayStringAt(1, LINE(8), (uint8_t *)&userheighttext, CENTER_MODE);
+        }
+        //start button is pressed
+        if (y < 80 && y > 30){
+          start_flag = true;
+          lcd.Clear(LCD_COLOR_LIGHTGREEN);
+          //intialize timer to track when 20s have passed
+          t.start();
+        }
       }
+      
+      if(start_flag == true){
+        //*************gyroscope readings*****************
+        int16_t raw_gx,raw_gy,raw_gz;
+        float gx, gy, gz;
+        //prepare the write buffer to trigger a sequential read
+        write_buf[0]=OUT_X_L|0x80|0x40;
+        //start sequential sample reading
+        spi.transfer(write_buf,7,read_buf,7,spi_cb,SPI_EVENT_COMPLETE );
+        flags.wait_all(SPI_FLAG);
+        //read_buf after transfer: garbage byte, gx_low,gx_high,gy_low,gy_high,gz_low,gz_high
+        //Put the high and low bytes in the correct order lowB,HighB -> HighB,LowB
+        raw_gx=( ( (uint16_t)read_buf[2] ) <<8 ) | ( (uint16_t)read_buf[1] );
+        raw_gy=( ( (uint16_t)read_buf[4] ) <<8 ) | ( (uint16_t)read_buf[3] );
+        raw_gz=( ( (uint16_t)read_buf[6] ) <<8 ) | ( (uint16_t)read_buf[5] );
 
-      //*************gyroscope readings*****************
-      int16_t raw_gx,raw_gy,raw_gz;
-      float gx, gy, gz;
-      //prepare the write buffer to trigger a sequential read
-      write_buf[0]=OUT_X_L|0x80|0x40;
-      //start sequential sample reading
-      spi.transfer(write_buf,7,read_buf,7,spi_cb,SPI_EVENT_COMPLETE );
-      flags.wait_all(SPI_FLAG);
-      //read_buf after transfer: garbage byte, gx_low,gx_high,gy_low,gy_high,gz_low,gz_high
-      //Put the high and low bytes in the correct order lowB,HighB -> HighB,LowB
-      raw_gx=( ( (uint16_t)read_buf[2] ) <<8 ) | ( (uint16_t)read_buf[1] );
-      raw_gy=( ( (uint16_t)read_buf[4] ) <<8 ) | ( (uint16_t)read_buf[3] );
-      raw_gz=( ( (uint16_t)read_buf[6] ) <<8 ) | ( (uint16_t)read_buf[5] );
+        //printf("RAW|\tgx: %d \t gy: %d \t gz: %d\t",raw_gx,raw_gy,raw_gz);
+        //unit conversion to radians per second
+        gx=((float)raw_gx)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
+        gy=((float)raw_gy)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
+        gz=((float)raw_gz)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
 
-      //printf("RAW|\tgx: %d \t gy: %d \t gz: %d\t",raw_gx,raw_gy,raw_gz);
-      //unit conversion to radians per second
-      gx=((float)raw_gx)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
-      gy=((float)raw_gy)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
-      gz=((float)raw_gz)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
+        //prep text for LCD
+        snprintf(bufx, 60, "gx: %4.5f",gx);
+        snprintf(bufy, 60, "gy: %4.5f",gy);
+        snprintf(bufz, 60, "gz: %4.5f",gz);
+        //display text
+        lcd.DisplayStringAtLine(2, (uint8_t *)bufx);
+        lcd.DisplayStringAtLine(3, (uint8_t *)bufy);
+        lcd.DisplayStringAtLine(4, (uint8_t *)bufz);
 
-      //prep text for LCD
-      snprintf(bufx, 60, "gx: %4.5f",gx);
-      snprintf(bufy, 60, "gy: %4.5f",gy);
-      snprintf(bufz, 60, "gz: %4.5f",gz);
-      //display text
-      lcd.DisplayStringAtLine(2, (uint8_t *)bufx);
-      lcd.DisplayStringAtLine(3, (uint8_t *)bufy);
-      lcd.DisplayStringAtLine(4, (uint8_t *)bufz);
+        //*************math for distance*****************
+        //multiply each reading of z by the amount of time between each reading
+        //store results in another array to calculate the area under the curve (integration)
 
-      //*************math for distance*****************
-      //multiply each reading of z by the amount of time between each reading
-      //store results in another array to calculate the area under the curve (integration)
+        //checking if twenty seconds have passed
+        elapsed_time=t.read_ms();
+        if (elapsed_time >= 20000){
 
-      //checking if twenty seconds have passed
-      elapsed_time=t.read_ms();
-      if (elapsed_time >= 20000){
+          //sum area under the curve array
 
-        //sum area under the curve array
+          //text on LCD
+          snprintf(buft, 60, "twenty seconds: %d", result);
+          lcd.DisplayStringAtLine(6, (uint8_t *)buft);
 
-        //text on LCD
-        snprintf(buft, 60, "twenty seconds: %d", result);
-        lcd.DisplayStringAtLine(6, (uint8_t *)buft);
-
-        //reset timer
-        t.reset();
-        
-        //reset 
-        result = result + 1;
+          //reset timer
+          t.reset();
+          
+          //reset 
+          result = result + 1;
 
 
+        }
       }
-
         thread_sleep_for(100);
+      
 
     }
 
