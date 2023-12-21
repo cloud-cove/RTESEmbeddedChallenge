@@ -65,6 +65,7 @@ char bufl[60];
 float result = 0;
 
 bool start_flag = false;
+bool reset_flag = false;
 
 //timer for 20s result
 Timer t;
@@ -145,7 +146,7 @@ int main(){
           lcd.DisplayStringAt(1, LINE(8), (uint8_t *)&userheighttext, CENTER_MODE);
         }
         //start button is pressed
-        if (y < 80 && y > 30){
+        if (y < 85 && y > 10){
           start_flag = true;
           lcd.Clear(LCD_COLOR_LIGHTGREEN);
           //intialize timer to track when 20s have passed
@@ -153,7 +154,7 @@ int main(){
           stept.start();
         }
       }
-      
+
       if(start_flag == true){
         //*************gyroscope readings*****************
         int16_t raw_gx,raw_gy,raw_gz;
@@ -176,6 +177,8 @@ int main(){
         gx=((float)raw_gx)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
         gy=((float)raw_gy)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
         gz=((float)raw_gz)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
+
+        printf("gz: %f", gz);
 
         //store values of angular velocity
         ang_x[ang_ind] = gx;
@@ -213,10 +216,12 @@ int main(){
         if (elapsed_time >= 20000){
 
           //sum area under the curve array
-          uint32_t sum_array = 0;
+          float sum_array = 0;
           for(int i = 0; i < 80; i++){
             sum_array = sum_array + integrate[i];
           }
+          //multiply by two for othher leg
+          sum_array = sum_array * 2.0; 
 
           //text on LCD
           snprintf(buft, 60, "distance in 20s: %f m", sum_array);
@@ -229,7 +234,14 @@ int main(){
           result = result + 1;
 
         }
+      
+        /*reset button
+        if (TS_State.TouchDetected && reset_flag == false){
+          x = TS_State.X;
+          y = TS_State.Y;
+        }*/
       }
+
       thread_sleep_for(250);
       
 
