@@ -196,10 +196,13 @@ int main(){
         //also multiply by amount of time between each reading (linear velocity)
         //store results in another array to calculate the area under the curve (integration)
         lin_velocity = ang_z[ang_ind] * float(userheight);
-        float lin_velocity_dis = lin_velocity * (1000.0/12.0); //convert from in/ms to ft/s
-        snprintf(bufl, 60, "lin velocity: %f ft/s",lin_velocity_dis);
-        lcd.DisplayStringAtLine(5, (uint8_t *)bufl);
-        integrate[ang_ind] = lin_velocity * step_time;
+
+        //float lin_velocity_dis = lin_velocity ; 
+        //snprintf(bufl, 60, "lin velocity: %f ft/s",lin_velocity);
+        //lcd.DisplayStringAtLine(5, (uint8_t *)bufl);
+
+        // linear velocity * time = distance per step * convert from in/ms to ft/s
+        integrate[ang_ind] = abs(lin_velocity) * step_time * (1/12000.0); 
         ang_ind = ang_ind + 1;
         if (ang_ind >= 80){
           ang_ind = 0;
