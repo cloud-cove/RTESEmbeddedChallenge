@@ -6,10 +6,19 @@
 // variable declarations
 //*************Data Storage*****************
 
-//todo: arrays to store 20 seconds of x y z data
+//arrays to store 20 seconds of x y z data sampled every 250 ms
+uint16_t ang_x[80];
+uint16_t ang_y[80];
+uint16_t ang_z[80];
+//array to calc the integration with
+uint16_t lin_velocity;
+uint16_t integrate[80];
+//track index
+volatile uint16_t ang_ind = 0;
+
+//length of the users legs for our approximation
 uint16_t userheight = 30; //in inches
 
-//example 2 from recitation 5: 
 //*************SPI intialization*****************
 SPI spi(PF_9, PF_8, PF_7,PC_1,use_gpio_ssel); // mosi, miso, sclk, cs
 
@@ -52,13 +61,17 @@ char bufx[60];
 char bufy[60];
 char bufz[60];
 char buft[60];
+char bufl[60];
 uint16_t result = 0;
 
 bool start_flag = false;
 
-//timer
+//timer for 20s result
 Timer t;
 volatile uint32_t elapsed_time;
+//timer for between steps
+Timer stept;
+volatile uint32_t step_time;
 
 
 //*************main*****************
@@ -137,6 +150,7 @@ int main(){
           lcd.Clear(LCD_COLOR_LIGHTGREEN);
           //intialize timer to track when 20s have passed
           t.start();
+          stept.start();
         }
       }
       
@@ -154,12 +168,19 @@ int main(){
         raw_gx=( ( (uint16_t)read_buf[2] ) <<8 ) | ( (uint16_t)read_buf[1] );
         raw_gy=( ( (uint16_t)read_buf[4] ) <<8 ) | ( (uint16_t)read_buf[3] );
         raw_gz=( ( (uint16_t)read_buf[6] ) <<8 ) | ( (uint16_t)read_buf[5] );
+        step_time = stept.read_ms();
+        stept.reset();
 
         //printf("RAW|\tgx: %d \t gy: %d \t gz: %d\t",raw_gx,raw_gy,raw_gz);
         //unit conversion to radians per second
         gx=((float)raw_gx)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
         gy=((float)raw_gy)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
         gz=((float)raw_gz)*(17.5f*0.017453292519943295769236907684886f / 1000.0f);
+
+        //store values of angular velocity
+        ang_x[ang_ind] = gx;
+        ang_y[ang_ind] = gy;
+        ang_z[ang_ind] = gz;
 
         //prep text for LCD
         snprintf(bufx, 60, "gx: %4.5f",gx);
@@ -171,17 +192,31 @@ int main(){
         lcd.DisplayStringAtLine(4, (uint8_t *)bufz);
 
         //*************math for distance*****************
-        //multiply each reading of z by the amount of time between each reading
+        //multiply each reading of z by the length of the leg (pendulum approximation)
+        //also multiply by amount of time between each reading (linear velocity)
         //store results in another array to calculate the area under the curve (integration)
+        lin_velocity = ang_z[ang_ind] * float(userheight);
+        float lin_velocity_dis = lin_velocity * (1000.0/12.0); //convert from in/ms to ft/s
+        snprintf(bufl, 60, "lin velocity: %f ft/s",lin_velocity_dis);
+        lcd.DisplayStringAtLine(5, (uint8_t *)bufl);
+        integrate[ang_ind] = lin_velocity * step_time;
+        ang_ind = ang_ind + 1;
+        if (ang_ind >= 80){
+          ang_ind = 0;
+        }
 
         //checking if twenty seconds have passed
         elapsed_time=t.read_ms();
         if (elapsed_time >= 20000){
 
           //sum area under the curve array
+          uint32_t sum_array = 0;
+          for(int i = 0; i < 80; i++){
+            sum_array = sum_array + integrate[i];
+          }
 
           //text on LCD
-          snprintf(buft, 60, "twenty seconds: %d", result);
+          snprintf(buft, 60, "distance in 20s: %ld ft", sum_array);
           lcd.DisplayStringAtLine(6, (uint8_t *)buft);
 
           //reset timer
@@ -190,10 +225,9 @@ int main(){
           //reset 
           result = result + 1;
 
-
         }
       }
-        thread_sleep_for(100);
+      thread_sleep_for(250);
       
 
     }
