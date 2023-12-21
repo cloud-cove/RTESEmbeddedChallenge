@@ -201,8 +201,8 @@ int main(){
         //snprintf(bufl, 60, "lin velocity: %f ft/s",lin_velocity);
         //lcd.DisplayStringAtLine(5, (uint8_t *)bufl);
 
-        // linear velocity * time = distance per step * convert from in/ms to ft/s
-        integrate[ang_ind] = fabs(lin_velocity) * step_time * (1/12000.0); 
+        // linear velocity * time = distance per step * convert from in/ms to m/s
+        integrate[ang_ind] = fabs(lin_velocity) * step_time * (0.0254/1000.0); 
         ang_ind = ang_ind + 1;
         if (ang_ind >= 80){
           ang_ind = 0;
@@ -219,7 +219,7 @@ int main(){
           }
 
           //text on LCD
-          snprintf(buft, 60, "distance in 20s: %ld ft", sum_array);
+          snprintf(buft, 60, "distance in 20s: %f m", sum_array);
           lcd.DisplayStringAtLine(6, (uint8_t *)buft);
 
           //reset timer
