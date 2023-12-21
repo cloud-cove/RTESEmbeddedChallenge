@@ -17,7 +17,9 @@ float integrate[80];
 volatile uint16_t ang_ind = 0;
 
 //length of the users legs for our approximation
-uint16_t userheight = 30; //in inches
+uint16_t userheight = 36; //in inches
+
+float total_dist = 0;
 
 //*************SPI intialization*****************
 SPI spi(PF_9, PF_8, PF_7,PC_1,use_gpio_ssel); // mosi, miso, sclk, cs
@@ -61,6 +63,7 @@ char bufx[60];
 char bufy[60];
 char bufz[60];
 char buft[60];
+char bufd[60];
 char bufl[60];
 float result = 0;
 
@@ -135,13 +138,13 @@ int main(){
         lcd.DisplayStringAt(1, LINE(18), (uint8_t *)&text, LEFT_MODE);
         //up button is pressed
         if ( (y<250 && y>200) && (x<50) ){
-          userheight = userheight + 6;
+          userheight = userheight + 2;
           sprintf((char*)userheighttext, "%d inches", userheight);
           lcd.DisplayStringAt(1, LINE(8), (uint8_t *)&userheighttext, CENTER_MODE);
         }
         //down button is pressed
         if ( (y<135 && y>95) && (x<50) ){
-          userheight = userheight - 6;
+          userheight = userheight - 2;
           sprintf((char*)userheighttext, "%d inches", userheight);
           lcd.DisplayStringAt(1, LINE(8), (uint8_t *)&userheighttext, CENTER_MODE);
         }
@@ -223,23 +226,42 @@ int main(){
           //multiply by two for othher leg
           sum_array = sum_array * 2.0; 
 
-          //text on LCD
-          snprintf(buft, 60, "distance in 20s: %f m", sum_array);
-          lcd.DisplayStringAtLine(6, (uint8_t *)buft);
-
           //reset timer
           t.reset();
           
-          //reset 
-          result = result + 1;
+          //add to total distance
+          total_dist += sum_array;
 
+          
+          //text on LCD
+          snprintf(buft, 60, "distance in 20s: %f m", sum_array);
+          lcd.DisplayStringAtLine(6, (uint8_t *)buft);
+          snprintf(bufd, 60, "total distance:  %f m", total_dist);
+          lcd.DisplayStringAtLine(8, (uint8_t *)bufd);
         }
+
+  
       
-        /*reset button
-        if (TS_State.TouchDetected && reset_flag == false){
+        //reset button
+        lcd.DisplayStringAtLine(16, (uint8_t *)"[  R E S E T  ]");
+        if (TS_State.TouchDetected){
           x = TS_State.X;
           y = TS_State.Y;
-        }*/
+          if (y < 85 && y > 10){
+            //reset data arrays
+            for(int i = 0; i < 80; i++){
+              ang_x[i] = 0;
+              ang_y[i] = 0;
+              ang_z[i] = 0;
+              integrate[i] = 0;
+            }
+            lcd.DisplayStringAtLine(6, (uint8_t *)"                       "); 
+            //reset timers
+            t.reset();
+            stept.reset();
+          }
+
+        }
       }
 
       thread_sleep_for(250);
