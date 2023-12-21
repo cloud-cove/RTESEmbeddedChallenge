@@ -7,12 +7,12 @@
 //*************Data Storage*****************
 
 //arrays to store 20 seconds of x y z data sampled every 250 ms
-uint16_t ang_x[80];
-uint16_t ang_y[80];
-uint16_t ang_z[80];
+float ang_x[80];
+float ang_y[80];
+float ang_z[80];
 //array to calc the integration with
-uint16_t lin_velocity;
-uint16_t integrate[80];
+float lin_velocity;
+float integrate[80];
 //track index
 volatile uint16_t ang_ind = 0;
 
@@ -62,7 +62,7 @@ char bufy[60];
 char bufz[60];
 char buft[60];
 char bufl[60];
-uint16_t result = 0;
+float result = 0;
 
 bool start_flag = false;
 
@@ -195,14 +195,14 @@ int main(){
         //multiply each reading of z by the length of the leg (pendulum approximation)
         //also multiply by amount of time between each reading (linear velocity)
         //store results in another array to calculate the area under the curve (integration)
-        lin_velocity = ang_z[ang_ind] * float(userheight);
+        lin_velocity = fabs(ang_z[ang_ind]) * float(userheight);
 
         //float lin_velocity_dis = lin_velocity ; 
         //snprintf(bufl, 60, "lin velocity: %f ft/s",lin_velocity);
         //lcd.DisplayStringAtLine(5, (uint8_t *)bufl);
 
         // linear velocity * time = distance per step * convert from in/ms to ft/s
-        integrate[ang_ind] = abs(lin_velocity) * step_time * (1/12000.0); 
+        integrate[ang_ind] = fabs(lin_velocity) * step_time * (1/12000.0); 
         ang_ind = ang_ind + 1;
         if (ang_ind >= 80){
           ang_ind = 0;
